@@ -93,7 +93,7 @@ try {
     if (-not (Test-Path -LiteralPath $stageKs)) {
         Invoke-Checked { & (Join-Path $jdk 'bin\keytool.exe') -genkeypair -keystore $stageKs -alias gfc -keyalg RSA -keysize 2048 -validity 10950 -storepass gfc2026 -keypass gfc2026 -dname 'CN=GFC, OU=GFC, O=GFC, L=BJ, ST=BJ, C=CN' } 'keytool'
     }
-    $stageApk = Join-Path $stage 'GlobalFundBoard-v1.2.apk'
+    $stageApk = Join-Path $stage 'GlobalFundBoard-v1.3.apk'
     Invoke-Checked { & (Join-Path $bt 'apksigner.bat') sign --ks $stageKs --ks-pass pass:gfc2026 --key-pass pass:gfc2026 --out $stageApk (Join-Path $work 'aligned.apk') } 'apksigner sign'
 
     Invoke-Checked { & (Join-Path $bt 'apksigner.bat') verify --print-certs $stageApk } 'apksigner verify'
@@ -110,7 +110,7 @@ try {
     } finally { $zip.Dispose() }
 
     Copy-Item -LiteralPath $stageKs -Destination $ks -Force -ErrorAction SilentlyContinue
-    $apkName = -join ([char]0x57FA, [char]0x91D1, [char]0x5206, [char]0x6790, [char]0x5668, '-v1.2.apk')
+    $apkName = -join ([char]0x57FA, [char]0x91D1, [char]0x5206, [char]0x6790, [char]0x5668, '-v1.3.apk')
     $outApk = Join-Path $root $apkName
     Copy-Item -LiteralPath $stageApk -Destination $outApk -Force
     $mb = [math]::Round((Get-Item -LiteralPath $outApk).Length / 1MB, 2)
