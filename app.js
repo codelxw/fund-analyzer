@@ -73,7 +73,7 @@
     return '近期均值';
   }
 
-  // 基金是否 QDII（净值延迟，预估对应“明日”）；否则视为 T+1（预估对应“今日”）
+  // 基金是否 QDII（净值按 T+2 披露，比 A股 T+1 晚一个交易日）
   function isQDIIFund(b) {
     return /QDII/i.test((b && b.name) || '');
   }
@@ -84,14 +84,10 @@
     const d = new Date();
     const day = d.getDay(); // 0 周日 ~ 6 周六
     if (isQDIIFund(b)) {
-      // 上一个美股交易日：周日/周一 → 上周五；周二~周六 → 昨天
-      if (day === 0 || day === 1) {
-        const t = new Date(d);
-        t.setDate(t.getDate() - (day === 1 ? 3 : 2));
-        return fmtDate(t);
-      }
+      // QDII T+2：往前推两个交易日（周三~周六→前两天；周日→上周四；周一/周二→上周四/五）
+      const off = { 0: -3, 1: -4, 2: -4, 3: -2, 4: -2, 5: -2, 6: -2 };
       const t = new Date(d);
-      t.setDate(t.getDate() - 1);
+      t.setDate(t.getDate() + off[day]);
       return fmtDate(t);
     }
     // A股：周末不公布净值，回退到上周五；工作日就是今天
@@ -125,9 +121,9 @@
     return aShareOpenNow();
   }
 
-  // 预估的时间口径标签：QDII = 明日涨幅预估，T+1(A股) = 预计今日涨跌幅
-  function estTimeLabel(b) {
-    return isQDIIFund(b) ? '明日涨幅预估' : '预计今日涨跌幅';
+  // 预估标签：统一为“今日预估涨幅”（已更新/待更新按 A股 T+1、QDII T+2 口径判断）
+  function estTimeLabel() {
+    return '今日预估涨幅';
   }
 
   function toast(msg) {
@@ -802,7 +798,7 @@
     });
   }
 
-  // “明日涨幅预估”模式下，每 10 秒就地更新排行、数字与柱状图
+  // “今日预估涨幅”模式下，每 10 秒就地更新排行、数字与柱状图
   function leadSummary(best, worst, rets) {
     if (!rets.length) return '暂无数据';
     const upN = rets.filter(r => r > 0).length;
@@ -832,7 +828,7 @@
     }
     $('#boardSummary').innerHTML = `
       <div class="sum-card wide">
-        <div class="k">明日涨幅预估排行速览</div>
+        <div class="k">今日预估涨幅排行速览</div>
         <div class="v">${leadSummary(best, worst, rets)}</div>
         <div class="s">平均 ${fmtPct(avg)} ｜ 上涨 ${upN} 只 / 下跌 ${rets.length - upN} 只（共 ${rets.length} 只），按持仓与近期走势综合估算${maxEstClock()}，仅供参考</div>
       </div>`;
@@ -1039,6 +1035,97 @@
     if (ba) ba.disabled = state.refreshing;
   }
 
+  // ================= 数据备份 / 恢复 =================
+  function buildBackupText() {
+    return JSON.stringify({
+      v: 1,
+      app: '基金分析器',
+      exportedAt: new Date().toISOString(),
+      theme: state.themePref,
+      funds: state.funds
+    }, null, 2);
+  }
+
+  function closeBackup() {
+    $('#backup').classList.remove('show');
+  }
+
+  function openBackup() {
+    $('#backupTitle').textContent = '导出数据备份';
+    $('#backupHint').innerHTML = '把下面的备份内容<b>复制保存</b>（或下载成文件）。重装 App 后到“我的 → 数据备份与恢复 → 恢复备份”粘贴即可找回基金、分组和主题。';
+    $('#backupText').value = buildBackupText();
+    $('#backupText').readOnly = true;
+    $('#backupActions').style.display = '';
+    $('#restoreActions').style.display = 'none';
+    $('#backupStatus').textContent = '';
+    $('#backup').classList.add('show');
+  }
+
+  function openRestore() {
+    $('#backupTitle').textContent = '恢复备份';
+    $('#backupHint').innerHTML = '粘贴之前导出的备份内容，点“恢复备份”。当前基金清单会被备份里的内容替换，恢复后自动重新拉取数据。';
+    $('#backupText').value = '';
+    $('#backupText').readOnly = false;
+    $('#backupActions').style.display = 'none';
+    $('#restoreActions').style.display = '';
+    $('#backupStatus').textContent = '';
+    $('#backup').classList.add('show');
+  }
+
+  function copyBackupText() {
+    const t = $('#backupText').value;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(
+        () => { $('#backupStatus').textContent = '已复制，请粘贴保存到备忘录 / 文件'; },
+        () => legacyCopy(t)
+      );
+    } else {
+      legacyCopy(t);
+    }
+  }
+
+  function legacyCopy(t) {
+    const ta = document.createElement('textarea');
+    ta.value = t;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    ta.remove();
+    $('#backupStatus').textContent = ok ? '已复制，请粘贴保存到备忘录 / 文件' : '复制失败，请长按文本框手动复制';
+  }
+
+  function downloadBackup() {
+    const blob = new Blob([$('#backupText').value], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '基金分析器备份-' + fmtDate(new Date()) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 800);
+    $('#backupStatus').textContent = '已生成备份文件（手机未自动下载时，请改用“复制备份”保存）';
+  }
+
+  function restoreBackup() {
+    try {
+      const obj = JSON.parse($('#backupText').value);
+      const funds = Array.isArray(obj.funds) ? obj.funds.filter(f => f && f.code && f.name) : [];
+      if (!funds.length) throw new Error('备份内容里没有基金清单');
+      state.funds = funds;
+      saveFunds();
+      if (obj.theme && ['auto', 'dark', 'light'].includes(obj.theme)) applyTheme(obj.theme, true);
+      state.bundles.clear();
+      closeBackup();
+      toast('已恢复 ' + funds.length + ' 只基金，正在刷新数据…');
+      refreshAll(true);
+    } catch (e) {
+      $('#backupStatus').textContent = '恢复失败：' + (e && e.message ? e.message : '内容格式不正确');
+    }
+  }
+
   // ================= 全球主要指数 =================
   let indexData = [];
   function indexUrl() {
@@ -1082,7 +1169,6 @@
 
   // ================= 渲染：看板 =================
   const BOARD_PERIODS = [
-    { key: 'est', label: '明日涨幅预估' },
     { key: '1w', label: '近1周' }, { key: '1m', label: '近1月' }, { key: '3m', label: '近3月' },
     { key: '6m', label: '近半年' }, { key: '1y', label: '近1年' }, { key: 'ytd', label: '今年来' }
   ];
@@ -1138,7 +1224,7 @@
       if (!best || x.ret > best.ret) best = x;
       if (!worst || x.ret < worst.ret) worst = x;
     }
-    const plabel = estMode ? '明日涨幅预估' : BOARD_PERIODS.find(p => p.key === key).label;
+    const plabel = estMode ? '今日预估涨幅' : BOARD_PERIODS.find(p => p.key === key).label;
     $('#boardSummary').innerHTML = `
       <div class="sum-card wide">
         <div class="k">${plabel}排行速览</div>
@@ -1154,8 +1240,8 @@
       const d = [...state.bundles.values()].reduce((m, b) => (b.estimate && b.estimate.date > m ? b.estimate.date : m), '');
       if (d) estDateTxt = '（截至 ' + d + ' · 每1分钟更新）';
     }
-    $('#boardChartTitle').textContent = estMode ? '明日涨幅预估排序' : '区间涨幅排行';
-    $('#boardHint').textContent = (estMode ? '按明日涨幅预估排序' + estDateTxt + '（仅供参考）' : '按' + plabel + '涨幅排序') + '，点击基金查看详情';
+    $('#boardChartTitle').textContent = estMode ? '今日预估涨幅排序' : '区间涨幅排行';
+    $('#boardHint').textContent = (estMode ? '按今日预估涨幅排序' + estDateTxt + '（仅供参考）' : '按' + plabel + '涨幅排序') + '，点击基金查看详情';
     $('#boardList').innerHTML = list.map((x, i) => {
       const b = x.b;
       const p = b.periods[key] || {};
@@ -1281,7 +1367,7 @@
       const s = rangeSeries(first, state.trendRange);
       if (s.length) rangeTxt = `当前区间：${s[0].d} ~ ${s[s.length - 1].d}。`;
     }
-    $('#trendNote').textContent = '怎么看：横坐标 = 日期（形如 8/06，每年 1 月会标出年份），纵坐标 = 累计涨幅（%）。每只基金以所选区间首日净值为 0%，之后逐日累计，方便对比同一段时间谁涨得多。' + rangeTxt + '可拖动下方时间轴缩放区间，或点上方按钮快速切换；横坐标两端始终显示区间首日和最新日期。QDII 基金净值实际披露晚 1-2 个交易日，所以曲线画到基金最新披露净值那天为止。可勾选 / 取消上方的基金来增减对比对象。';
+    $('#trendNote').textContent = '怎么看：横坐标 = 日期（形如 8/06，每年 1 月会标出年份），纵坐标 = 累计涨幅（%）。每只基金以所选区间首日净值为 0%，之后逐日累计，方便对比同一段时间谁涨得多。' + rangeTxt + '可拖动下方时间轴缩放区间，或点上方按钮快速切换；横坐标两端始终显示区间首日和最新日期。QDII 基金净值按 T+2 披露，所以曲线画到基金最新披露净值那天为止。可勾选 / 取消上方的基金来增减对比对象。';
     drawTrendChart();
     drawCorr();
     drawFit();
@@ -2754,6 +2840,13 @@
       renderAll();
       toast('本地缓存已清空');
     };
+    $('#btnBackup').onclick = openBackup;
+    $('#btnRestore').onclick = openRestore;
+    $('#backupCopy').onclick = copyBackupText;
+    $('#backupDownload').onclick = downloadBackup;
+    $('#restoreConfirm').onclick = restoreBackup;
+    $('#backupClose').onclick = closeBackup;
+    $('#backup').onclick = e => { if (e.target === $('#backup')) closeBackup(); };
     bindSearch();
     bindHoldShot();
     document.querySelectorAll('.tab').forEach(tab => tab.onclick = () => switchTab(tab.dataset.panel));
