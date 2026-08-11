@@ -78,6 +78,36 @@
     return /QDII/i.test((b && b.name) || '');
   }
 
+  // 按基金类型计算"今天应该公布到哪一天的净值"：
+  // A股(T+0)当天收盘后公布当天净值；QDII(T+1)今天公布的是上一个美股交易日的净值
+  function expectedNavDate(b) {
+    const d = new Date();
+    const day = d.getDay(); // 0 周日 ~ 6 周六
+    if (isQDIIFund(b)) {
+      // 上一个美股交易日：周日/周一 → 上周五；周二~周六 → 昨天
+      if (day === 0 || day === 1) {
+        const t = new Date(d);
+        t.setDate(t.getDate() - (day === 1 ? 3 : 2));
+        return fmtDate(t);
+      }
+      const t = new Date(d);
+      t.setDate(t.getDate() - 1);
+      return fmtDate(t);
+    }
+    // A股：周末不公布净值，回退到上周五；工作日就是今天
+    if (day === 0 || day === 6) {
+      const t = new Date(d);
+      t.setDate(t.getDate() - (day === 0 ? 2 : 1));
+      return fmtDate(t);
+    }
+    return fmtDate(d);
+  }
+
+  // 是否已更新：净值日期达到/超过该基金今天应有的日期
+  function isFundUpdated(b) {
+    return !!(b && b.navDate && b.navDate >= expectedNavDate(b));
+  }
+
   // A股今日是否已开盘（9:15 集合竞价起视为已开盘；周末不开盘）
   function aShareOpenNow() {
     const d = new Date();
@@ -836,8 +866,8 @@
       .filter(b => state.boardGroup === 'all' || (fundOf(b.code) || {}).group === state.boardGroup);
     return {
       ldate,
-      updated: all.filter(b => b.navDate === ldate),
-      pending: all.filter(b => b.navDate !== ldate)
+      updated: all.filter(b => isFundUpdated(b)),
+      pending: all.filter(b => !isFundUpdated(b))
     };
   }
 
@@ -878,7 +908,7 @@
     }
     chipsBox.innerHTML = `
       <button class="chip ${state.updateGroup === 'updated' ? 'active' : ''}" data-g="updated">已更新（${updated.length}）</button>
-      <button class="chip ${state.updateGroup === 'pending' ? 'active' : ''}" data-g="pending">未更新（${pending.length}）</button>`;
+      <button class="chip ${state.updateGroup === 'pending' ? 'active' : ''}" data-g="pending">待更新（${pending.length}）</button>`;
     chipsBox.querySelectorAll('.chip').forEach(c => c.onclick = () => {
       state.updateGroup = c.dataset.g;
       state.updateGroupTouched = true;
@@ -898,8 +928,8 @@
       list.sort((a, b) => shortName(a.name).localeCompare(shortName(b.name), 'zh'));
     } else {
       list.sort((a, b) => {
-        const va = updateMainVal(a, a.navDate === ldate);
-        const vb = updateMainVal(b, b.navDate === ldate);
+        const va = updateMainVal(a, isFundUpdated(a));
+        const vb = updateMainVal(b, isFundUpdated(b));
         return (vb == null ? -Infinity : vb) - (va == null ? -Infinity : va);
       });
     }
@@ -908,7 +938,7 @@
       return;
     }
     box.innerHTML = list.map(b => {
-      const isUpdated = b.navDate === ldate;
+      const isUpdated = isFundUpdated(b);
       const expanded = state.expandedCodes.has(b.code);
       const v = updateMainVal(b, isUpdated);
       return `<div class="st-item" data-code="${b.code}">
@@ -916,7 +946,7 @@
           <div class="fund-main">
             <div class="fund-name">${esc(shortName(b.name))}${fundOf(b.code) && fundOf(b.code).group ? `<span class="tag group-tag">${esc(fundOf(b.code).group)}</span>` : ''}</div>
             <div class="fund-meta"><span>${b.code}</span><span>净值 ${b.nav != null ? b.nav.toFixed(4) : '--'} (${b.navDate || ''})</span>
-              <span class="st-badge ${isUpdated ? 'ok' : 'wait'}">${isUpdated ? '已更新' : '未更新'}</span></div>
+              <span class="st-badge ${isUpdated ? 'ok' : 'wait'}">${isUpdated ? '已更新' : '待更新'}</span></div>
           </div>
           <div class="fund-ret">
             <div class="big ${cls(v)}">${fmtPct(v)}</div>
@@ -944,16 +974,16 @@
     const cs = chipsBox.querySelectorAll('.chip');
     if (cs.length >= 2) {
       cs[0].textContent = '已更新（' + updated.length + '）';
-      cs[1].textContent = '未更新（' + pending.length + '）';
+      cs[1].textContent = '待更新（' + pending.length + '）';
     }
     box.querySelectorAll('.st-item').forEach(item => {
       const b = state.bundles.get(item.dataset.code);
       if (!b) return;
-      const isUpdated = b.navDate === ldate;
+      const isUpdated = isFundUpdated(b);
       const head = item.querySelector('.st-head');
       if (!head) return;
       const badge = head.querySelector('.st-badge');
-      if (badge) { badge.textContent = isUpdated ? '已更新' : '未更新'; badge.className = 'st-badge ' + (isUpdated ? 'ok' : 'wait'); }
+      if (badge) { badge.textContent = isUpdated ? '已更新' : '待更新'; badge.className = 'st-badge ' + (isUpdated ? 'ok' : 'wait'); }
       const big = head.querySelector('.fund-ret .big');
       const v = updateMainVal(b, isUpdated);
       if (big) { big.textContent = fmtPct(v); big.className = 'big ' + cls(v); }
@@ -968,8 +998,8 @@
       .filter(x => x.b);
     items.sort((x, y) => {
       if (state.updateSort === 'name') return shortName(x.b.name).localeCompare(shortName(y.b.name), 'zh');
-      const vx = updateMainVal(x.b, x.b.navDate === ldate);
-      const vy = updateMainVal(y.b, y.b.navDate === ldate);
+      const vx = updateMainVal(x.b, isFundUpdated(x.b));
+      const vy = updateMainVal(y.b, isFundUpdated(y.b));
       return (vy == null ? -Infinity : vy) - (vx == null ? -Infinity : vx);
     });
     items.forEach(x => box.appendChild(x.item));
@@ -1099,8 +1129,6 @@
       .filter(x => x.ret != null);
     list.sort((a, b2) => state.boardOrder === 'desc' ? b2.ret - a.ret : a.ret - b2.ret);
 
-    const ldate = latestNavDate();
-
     // 摘要
     const rets = list.map(x => x.ret);
     const upN = rets.filter(r => r > 0).length;
@@ -1135,7 +1163,7 @@
       const rankTxt = estMode ? '' : rankText(b, key);
       const diffTxt = estMode ? '' : (p.diff != null ? ` 较上期${p.diff > 0 ? '+' : ''}${p.diff}` : '');
       const badge = i < 3 ? `r${i + 1}` : 'other';
-      const updated = b.navDate === ldate;
+      const updated = isFundUpdated(b);
       const showEst = !estMode && isShowEstimate(b);
       const est = showEst ? `<div class="est-line">预估 <span class="${cls(b.estimate.pct)}">${fmtPct(b.estimate.pct)}</span>（${estTimeLabel(b)} · ${estBasisText(b)}，仅供参考）</div>` : '';
       return `<div class="fund-row" data-code="${b.code}">
