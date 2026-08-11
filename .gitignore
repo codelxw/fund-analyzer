@@ -1,0 +1,5 @@
+android/build/
+android/assets/www/
+android/build/
+android/gfc.keystore
+*.apk

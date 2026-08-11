@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1220">
+  <meta name="referrer" content="no-referrer">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="基金分析器">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="manifest" href="manifest.json">
+  <title>基金分析器</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="bg-fx" aria-hidden="true">
+    <div class="bg-grid"></div>
+    <div class="bg-orb orb-1"></div>
+    <div class="bg-orb orb-2"></div>
+    <div class="bg-orb orb-3"></div>
+    <div class="bg-scan"></div>
+  </div>
+  <header class="topbar">
+    <div class="topbar-title">
+      <h1>基金分析器</h1>
+      <div class="sub" id="updatedAt">数据加载中…</div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 看板 -->
+    <section class="panel active" id="panel-board">
+      <div class="card" id="indexCard">
+        <div class="card-title">全球主要指数 <span class="hint">实时行情，10 秒自动更新</span></div>
+        <div class="index-strip" id="indexStrip">加载中…</div>
+      </div>
+      <div class="card">
+        <div class="card-title">当日更新状态 <span class="hint">点击行展开详情</span></div>
+        <div class="chips" id="updateSortChips">
+          <button class="chip active" data-sort="ret">按涨跌排序</button>
+          <button class="chip" data-sort="name">按名称排序</button>
+        </div>
+        <div class="chips" id="updateGroupChips"></div>
+        <div id="updateStatusList" class="fund-list"></div>
+      </div>
+      <div class="chips" id="boardGroupChips"></div>
+      <div class="chips" id="boardPeriodChips"></div>
+      <div class="card">
+        <div class="card-title"><span id="boardChartTitle">区间涨幅排行</span> <span class="hint" id="boardOrderHint"></span></div>
+        <div id="boardChart" class="chart chart-sm"></div>
+      </div>
+      <div class="summary-cards" id="boardSummary"></div>
+      <div class="empty-state" id="boardEmpty" hidden>
+        <div class="empty-ico">＋</div>
+        <div class="empty-title">还没有添加基金</div>
+        <div class="empty-text">按主题 / 市场 / 地区一键添加，或搜索任意基金名称 / 代码</div>
+        <button class="btn empty-btn" id="btnGoAdd">去添加基金</button>
+      </div>
+      <div class="card">
+        <div class="card-title">基金列表 <span class="hint" id="boardHint"></span></div>
+        <div id="boardList" class="fund-list"></div>
+      </div>
+    </section>
+
+    <!-- 趋势 -->
+    <section class="panel" id="panel-trend">
+      <div class="chips" id="trendRangeChips"></div>
+      <div class="chips" id="trendGroupChips"></div>
+      <div class="chips chips-wrap" id="trendFundChips"></div>
+      <div class="card">
+        <div class="card-title">区间累计涨幅对比</div>
+        <div id="trendChart" class="chart"></div>
+        <div class="chart-note" id="trendNote"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">相关性热力图 <span class="hint">只对比上方勾选的基金</span></div>
+        <div id="corrChart" class="chart chart-md"></div>
+        <div class="chart-note" id="corrNote"></div>
+        <div class="note" id="corrHelp"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">持仓拟合度 <span class="hint">近一月基金收益 vs 上季持仓模拟组合</span></div>
+        <div id="fitList" class="fund-list"></div>
+        <div id="fitChart" class="chart chart-sm"></div>
+        <div class="chart-note" id="fitNote"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">拟合度走势 <span class="hint">滚动近一月窗口，逐日计算</span></div>
+        <div id="fitTrendChart" class="chart chart-sm"></div>
+        <div class="chart-note">曲线越高代表基金越贴合披露持仓；绿虚线 = 60%（拟合良好线），红虚线 = 40%（疑似调仓线）。拟合度会随每日行情滚动变化。</div>
+      </div>
+    </section>
+
+    <!-- 持仓 -->
+    <section class="panel" id="panel-holdings">
+      <div class="chips" id="holdGroupChips"></div>
+      <div class="chips chips-wrap" id="holdFundChips"></div>
+      <div id="holdContent"></div>
+    </section>
+
+    <!-- 管理 / 添加 -->
+    <section class="panel" id="panel-settings">
+      <div class="card">
+        <div class="card-title">搜索添加</div>
+        <input id="searchInput" class="input" type="text" placeholder="输入基金名称或 6 位代码，如：广发全球精选 / 270023" autocomplete="off">
+        <div class="note">支持直接输入 6 位基金代码；添加后可修改分组（主题 / 市场 / 地区）。</div>
+        <div id="searchResults" class="search-results"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">上传持仓截图识别 <span class="hint">自动读取截图里的基金并加入关注</span></div>
+        <input type="file" id="holdShotInput" class="input" accept="image/*">
+        <div class="note">选择天天基金 / 支付宝等持仓截图，自动识别其中的基金名称或代码并加入“当前关注”。识别准确度取决于截图清晰度；识别结果可手动确认。</div>
+        <div class="note" id="ocrStatus"></div>
+        <div id="ocrResults" class="search-results"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">当前关注 <span class="hint" id="fundCount"></span></div>
+        <div class="note">在每只基金右侧的“分组”框里输入任意名称，即可创建或修改自定义分组（看板会按分组筛选）。</div>
+        <div id="setFundList" class="fund-list"></div>
+        <datalist id="groupList"></datalist>
+      </div>
+      <div class="card">
+        <div class="card-title">数据维护</div>
+        <div class="btn-row">
+          <button class="btn" id="btnRefreshAll">立即刷新全部</button>
+          <button class="btn btn-ghost" id="btnClearCache">清空本地缓存</button>
+        </div>
+        <div class="note" id="setStatus"></div>
+        <div class="note">
+          数据来源：天天基金公开接口（净值、区间涨幅、同类排名、季度持仓、资产配置、经理信息），行情估算来自腾讯行情。仅用于个人研究，不构成投资建议。<br>
+          自动刷新：打开页面后每 10 秒刷新行情预估，每 60 秒检查净值是否更新（有更新才拉取完整数据）；在页面顶部**下拉**可手动刷新全部数据；QDII 基金净值通常比海外市场晚 1 个交易日。
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">应用设置</div>
+        <div class="chips" id="themeChips">
+          <button class="chip" data-theme="auto">自动（跟随系统）</button>
+          <button class="chip" data-theme="dark">夜间模式</button>
+          <button class="chip" data-theme="light">白天模式</button>
+        </div>
+        <div class="note">“自动”会跟随手机系统的浅色/深色设置（夜间或光线暗时手机通常会自动切深色），切换即时生效并自动保存。</div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab active" data-panel="board"><span class="tab-ico">◈</span><span>看板</span></button>
+    <button class="tab" data-panel="trend"><span class="tab-ico">〽</span><span>趋势</span></button>
+    <button class="tab" data-panel="holdings"><span class="tab-ico">▤</span><span>持仓</span></button>
+    <button class="tab" data-panel="settings"><span class="tab-ico">⚙</span><span>我的</span></button>
+  </nav>
+
+  <!-- 详情 -->
+  <div class="overlay" id="detail">
+    <div class="sheet" id="detailBody"></div>
+  </div>
+
+  <!-- 个股行情 -->
+  <div class="overlay" id="stock">
+    <div class="sheet" id="stockBody"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="vendor/echarts.min.js"></script>
+  <script src="funds.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

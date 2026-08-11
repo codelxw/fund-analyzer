@@ -1,0 +1,12 @@
+{
+  "pages": [
+    "pages/webview/webview"
+  ],
+  "window": {
+    "navigationBarTitleText": "基金分析器",
+    "navigationBarBackgroundColor": "#0b1220",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#0b1220"
+  },
+  "sitemapLocation": "sitemap.json"
+}
