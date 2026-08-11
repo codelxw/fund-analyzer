@@ -78,19 +78,12 @@
     return /QDII/i.test((b && b.name) || '');
   }
 
-  // 按基金类型计算"今天应该公布到哪一天的净值"：
-  // A股(T+0)当天收盘后公布当天净值；QDII(T+1)今天公布的是上一个美股交易日的净值
-  function expectedNavDate(b) {
+  // 统一口径：净值日期是“当天”（工作日）才算已更新，否则就是待更新。
+  // A股(T+1)、QDII(T+2)都适用；QDII 披露慢，多数时间会显示“待更新 + 今日预估涨幅”。
+  // 周末没有新的净值，回退到最近一个交易日（上周五）判断。
+  function expectedNavDate() {
     const d = new Date();
     const day = d.getDay(); // 0 周日 ~ 6 周六
-    if (isQDIIFund(b)) {
-      // QDII T+2：往前推两个交易日（周三~周六→前两天；周日→上周四；周一/周二→上周四/五）
-      const off = { 0: -3, 1: -4, 2: -4, 3: -2, 4: -2, 5: -2, 6: -2 };
-      const t = new Date(d);
-      t.setDate(t.getDate() + off[day]);
-      return fmtDate(t);
-    }
-    // A股：周末不公布净值，回退到上周五；工作日就是今天
     if (day === 0 || day === 6) {
       const t = new Date(d);
       t.setDate(t.getDate() - (day === 0 ? 2 : 1));
