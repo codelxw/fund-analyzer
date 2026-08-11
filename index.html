@@ -129,8 +129,16 @@
         <div class="note" id="setStatus"></div>
         <div class="note">
           数据来源：天天基金公开接口（净值、区间涨幅、同类排名、季度持仓、资产配置、经理信息），行情估算来自腾讯行情。仅用于个人研究，不构成投资建议。<br>
-          自动刷新：打开页面后每 10 秒刷新行情预估，每 60 秒检查净值是否更新（有更新才拉取完整数据）；在页面顶部**下拉**可手动刷新全部数据；QDII 基金净值通常比海外市场晚 1 个交易日。
+          自动刷新：打开页面后每 10 秒刷新行情预估，每 60 秒检查净值是否更新（有更新才拉取完整数据）；在页面顶部**下拉**可手动刷新全部数据；QDII 基金净值按 T+2 披露，比 A股基金晚两个交易日。
         </div>
+      </div>
+      <div class="card">
+        <div class="card-title">数据备份与恢复 <span class="hint">重装 App 前先备份，防丢失</span></div>
+        <div class="btn-row">
+          <button class="btn" id="btnBackup">导出备份</button>
+          <button class="btn btn-ghost" id="btnRestore">恢复备份</button>
+        </div>
+        <div class="note">卸载重装 App 会清空本地数据（手机系统限制）。换手机或重装前先"导出备份"保存，装好后用"恢复备份"粘贴回来，基金、分组、主题都会找回。</div>
       </div>
       <div class="card">
         <div class="card-title">应用设置</div>
@@ -150,6 +158,26 @@
     <button class="tab" data-panel="holdings"><span class="tab-ico">▤</span><span>持仓</span></button>
     <button class="tab" data-panel="settings"><span class="tab-ico">⚙</span><span>我的</span></button>
   </nav>
+
+  <!-- 数据备份 -->
+  <div class="overlay" id="backup">
+    <div class="sheet">
+      <div class="sheet-head">
+        <b id="backupTitle">数据备份</b>
+        <button class="sheet-close" id="backupClose">✕</button>
+      </div>
+      <div class="note" id="backupHint"></div>
+      <textarea id="backupText" class="input backup-text" rows="10" spellcheck="false" placeholder="粘贴备份内容…"></textarea>
+      <div class="btn-row" id="backupActions">
+        <button class="btn" id="backupCopy">复制备份</button>
+        <button class="btn btn-ghost" id="backupDownload">下载文件</button>
+      </div>
+      <div class="btn-row" id="restoreActions" style="display:none">
+        <button class="btn" id="restoreConfirm">恢复备份</button>
+      </div>
+      <div class="note" id="backupStatus"></div>
+    </div>
+  </div>
 
   <!-- 详情 -->
   <div class="overlay" id="detail">
