@@ -222,6 +222,7 @@ svg.spark { width: 74px; max-width: 100%; height: auto; }
 @keyframes slideUp { from { transform: translate(-50%, 30px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 .sheet-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
 .sheet-close { margin-left: auto; font-size: 1.3rem; color: var(--muted); cursor: pointer; background: none; border: none; }
+.backup-text { width: 100%; min-height: 180px; font-family: Consolas, Menlo, monospace; font-size: .72rem; line-height: 1.5; resize: vertical; }
 .detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .detail-grid .metric { text-align: center; }
 
